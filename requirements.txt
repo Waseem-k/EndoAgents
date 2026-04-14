@@ -1,0 +1,42 @@
+# ── Core ML ────────────────────────────────────────────────────────────────
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.51.0          # Gemma 4 support requires >= 4.51
+accelerate>=0.30.0
+bitsandbytes>=0.43.0          # 4-bit / 8-bit quantisation
+peft>=0.10.0                  # LoRA fine-tuning
+trl>=0.8.6                    # SFTTrainer for fine-tuning
+
+# ── Vision ──────────────────────────────────────────────────────────────────
+Pillow>=10.0.0
+opencv-python>=4.9.0
+
+# ── RAG / Vector DB ─────────────────────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=3.0.0  # Embeddings for RAG
+pypdf>=4.0.0                  # Ingest ISUOG / MUSA PDFs
+
+# ── Evaluation ──────────────────────────────────────────────────────────────
+rouge-score>=0.1.2
+bert-score>=0.3.13
+pycocoevalcap>=1.2             # CIDEr metric
+trulens-eval>=0.28.0           # TruLens triad (groundedness, relevance)
+nltk>=3.8.0
+
+# ── Data ────────────────────────────────────────────────────────────────────
+openpyxl>=3.1.0               # Read annotation Excel sheet
+pandas>=2.1.0
+scikit-learn>=1.4.0           # Train/val/test splits
+datasets>=2.18.0              # HuggingFace datasets
+
+# ── Utilities ───────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0      # Required by config/settings.py
+loguru>=0.7.0
+tqdm>=4.66.0
+matplotlib>=3.8.0
+numpy>=1.26.0
+
+# ── UI (demo) ───────────────────────────────────────────────────────────────
+gradio>=4.20.0
