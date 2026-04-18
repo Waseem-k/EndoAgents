@@ -301,11 +301,12 @@ class GemmaVision:
             add_generation_prompt=True,
         )
 
-        # Tokenise — pass visual_token_budget as a processor kwarg
+        # Tokenise — pass visual_token_budget to cap the number of image tokens
         inputs = self._processor(
             text=prompt_text,
             images=[image],
             return_tensors="pt",
+            max_image_size={"longest_edge": self.visual_token_budget},
         ).to(self.device)
 
         # Generate
