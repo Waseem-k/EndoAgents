@@ -301,12 +301,16 @@ class GemmaVision:
             add_generation_prompt=True,
         )
 
-        # Tokenise — pass visual_token_budget to cap the number of image tokens
+        # Tokenise.
+        # visual_token_budget controls the approximate number of image tokens
+        # used by the vision encoder (valid values: 70, 140, 280, 560, 1120).
+        # The Gemma 4 processor derives token count from the input image
+        # resolution — resize the image before this call if you need a tighter
+        # budget than the processor default (typically 896×896 → ~560 tokens).
         inputs = self._processor(
             text=prompt_text,
             images=[image],
             return_tensors="pt",
-            max_image_size={"longest_edge": self.visual_token_budget},
         ).to(self.device)
 
         # Generate
