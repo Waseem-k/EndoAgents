@@ -18,17 +18,26 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+import sys
 
 import torch
 from loguru import logger
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForImageTextToText, BitsAndBytesConfig
 
-from config.settings import settings
+try:
+    from config.settings import settings
+except ModuleNotFoundError:
+    # Allow direct execution from the models directory.
+    project_root = Path(__file__).resolve().parents[1]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from config.settings import settings
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -132,8 +141,15 @@ class GemmaVision:
         self.visual_token_budget = visual_token_budget or settings.visual_token_budget
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-        self._model = None
-        self._processor = None
+        if self.device == "cpu" and self.quantisation != "none":
+            logger.warning(
+                "Quantisation '{}' requested on CPU; falling back to 'none'.",
+                self.quantisation,
+            )
+            self.quantisation = "none"
+
+        self._model: Optional[Any] = None
+        self._processor: Optional[Any] = None
         self._loaded = False
 
         logger.info(f"GemmaVision initialised — model={self.model_id} | "
@@ -202,6 +218,18 @@ class GemmaVision:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             logger.info("Model unloaded from memory")
+
+    def _require_processor(self) -> Any:
+        """Return the processor or raise if model assets are not loaded."""
+        if self._processor is None:
+            raise RuntimeError("Processor is not loaded. Call load() before inference.")
+        return self._processor
+
+    def _require_model(self) -> Any:
+        """Return the model or raise if model assets are not loaded."""
+        if self._model is None:
+            raise RuntimeError("Model is not loaded. Call load() before inference.")
+        return self._model
 
     # ── Core generation ───────────────────────────────────────────────────────
     def generate_caption(
@@ -272,6 +300,8 @@ class GemmaVision:
         max_new_tokens: int,
     ) -> str:
         """Internal: build Gemma 4 chat format and run generation."""
+        processor = self._require_processor()
+        model = self._require_model()
 
         # Gemma 4 chat template:
         # - System role is supported natively
@@ -295,7 +325,7 @@ class GemmaVision:
         ]
 
         # Apply chat template — produces a formatted prompt string
-        prompt_text = self._processor.apply_chat_template(
+        prompt_text = processor.apply_chat_template(
             messages,
             tokenize=False,
             add_generation_prompt=True,
@@ -307,7 +337,7 @@ class GemmaVision:
         # The Gemma 4 processor derives token count from the input image
         # resolution — resize the image before this call if you need a tighter
         # budget than the processor default (typically 896×896 → ~560 tokens).
-        inputs = self._processor(
+        inputs = processor(
             text=prompt_text,
             images=[image],
             return_tensors="pt",
@@ -315,7 +345,7 @@ class GemmaVision:
 
         # Generate
         with torch.inference_mode():
-            output_ids = self._model.generate(
+            output_ids = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
@@ -326,7 +356,7 @@ class GemmaVision:
         # Decode only the newly generated tokens (strip the prompt)
         input_length = inputs["input_ids"].shape[-1]
         new_tokens   = output_ids[0][input_length:]
-        caption      = self._processor.decode(new_tokens, skip_special_tokens=True)
+        caption      = processor.decode(new_tokens, skip_special_tokens=True)
 
         return caption
 
@@ -345,3 +375,70 @@ class GemmaVision:
             f"token_budget={self.visual_token_budget}, "
             f"status={status})"
         )
+
+
+def verify_script(image_path: Optional[str] = None) -> bool:
+    """Small smoke test to verify model loading and one caption generation."""
+    logger.info("Running GemmaVision smoke test...")
+
+    try:
+        if image_path:
+            raw_path = Path(image_path).expanduser()
+            project_root = Path(__file__).resolve().parents[1]
+            candidates = [raw_path]
+            if not raw_path.is_absolute():
+                candidates.append(project_root / raw_path)
+                candidates.append(Path(__file__).resolve().parent / raw_path)
+
+            img_path = next((candidate for candidate in candidates if candidate.exists()), None)
+            if img_path is None:
+                attempted = " | ".join(str(candidate) for candidate in candidates)
+                raise FileNotFoundError(
+                    f"Smoke test image not found. Tried: {attempted}"
+                )
+            with Image.open(img_path) as img:
+                image = img.convert("RGB")
+        else:
+            # Use a synthetic placeholder when no sample image path is provided.
+            image = Image.new("RGB", (896, 896), color=(127, 127, 127))
+
+        with GemmaVision() as model:
+            result = model.generate_caption(
+                image=image,
+                max_new_tokens=min(64, settings.max_new_tokens),
+            )
+
+        if not result.success:
+            logger.error("Smoke test failed: {}", result.error)
+            return False
+
+        if not result.caption.strip():
+            logger.error("Smoke test failed: empty caption returned")
+            return False
+
+        logger.success(
+            "Smoke test passed in {}s with ~{} tokens",
+            result.inference_time_s,
+            result.approx_tokens,
+        )
+        logger.info("Caption preview: {}", result.caption[:300].replace("\n", " "))
+        return True
+
+    except Exception as exc:
+        logger.exception("Smoke test crashed: {}", exc)
+        return False
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run GemmaVision smoke test with optional input image."
+    )
+    parser.add_argument(
+        "--image",
+        type=str,
+        default=None,
+        help="Optional path to a real ultrasound image for verification.",
+    )
+    args = parser.parse_args()
+
+    raise SystemExit(0 if verify_script(args.image) else 1)
