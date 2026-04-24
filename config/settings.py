@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     quantisation: str = "4bit"          # none | 4bit | 8bit
     visual_token_budget: int = 560
     max_new_tokens: int = 600
+    hf_token: str | None = None
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     rag_docs_dir: str = "rag/documents"

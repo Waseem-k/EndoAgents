@@ -20,7 +20,8 @@ pypdf>=4.0.0                  # Ingest ISUOG / MUSA PDFs
 rouge-score>=0.1.2
 bert-score>=0.3.13
 pycocoevalcap>=1.2             # CIDEr metric
-trulens-eval>=0.28.0           # TruLens triad (groundedness, relevance)
+trulens>=1.0.0                 # Core TruLens package
+trulens-providers-litellm>=1.0.0  # LiteLLM provider for Judge Agent
 nltk>=3.8.0
 
 # ── Data ────────────────────────────────────────────────────────────────────

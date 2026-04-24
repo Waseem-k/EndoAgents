@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -164,6 +165,11 @@ class GemmaVision:
 
         logger.info(f"Loading {self.model_id} ...")
         dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
+        hf_token = settings.hf_token.strip() if settings.hf_token else None
+
+        # Keep auth project-local via config/.env and avoid relying on system env vars.
+        if hf_token:
+            os.environ["HF_TOKEN"] = hf_token
 
         # Quantisation config
         quant_cfg = None
@@ -182,6 +188,7 @@ class GemmaVision:
         # Processor
         self._processor = AutoProcessor.from_pretrained(
             self.model_id,
+            token=hf_token,
             trust_remote_code=True,
         )
 
@@ -191,6 +198,7 @@ class GemmaVision:
             torch_dtype=dtype,
             device_map="auto",
             quantization_config=quant_cfg,
+            token=hf_token,
             trust_remote_code=True,
             attn_implementation="eager",  # flash_attention_2 if supported
         )
